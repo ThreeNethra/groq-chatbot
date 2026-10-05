@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Groq Chatbot</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.css" />
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.js"></script>
+  </head>
+  <body>
+    <streamlit-app>
+      <app-requirements>
+requests
+      </app-requirements>
+      <app-file name="app.py" entrypoint>
+import requests
+import streamlit as st
+
+API_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+st.set_page_config(page_title="Groq Chatbot")
+st.title("Groq Chatbot")
+st.caption("A simple chatbot using Groq. This version runs in the browser with stlite.")
+
+with st.sidebar:
+    st.header("Settings")
+    # a static Space has no server and no secrets, so the key is entered by the user
+    # it stays in the browser and is only sent to the Groq API
+    api_key = st.text_input("Groq API key", type="password")
+    model = st.selectbox("Model", ["openai/gpt-oss-120b", "openai/gpt-oss-20b"])
+    temperature = st.slider("Temperature", 0.0, 1.0, 0.5, 0.1)
+    if st.button("Clear chat"):
+        st.session_state.messages = []
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+
+question = st.chat_input("Type your message")
+
+if question:
+    with st.chat_message("user"):
+        st.write(question)
+
+    with st.chat_message("assistant"):
+        if not api_key:
+            st.warning("Enter your Groq API key in the sidebar first.")
+        else:
+            messages = [{"role": "system", "content": "You are a helpful assistant. Keep your answers short and clear."}]
+            messages += st.session_state.messages
+            messages.append({"role": "user", "content": question})
+            try:
+                response = requests.post(
+                    API_URL,
+                    headers={"Authorization": "Bearer " + api_key},
+                    json={"model": model, "messages": messages, "temperature": temperature},
+                    timeout=60,
+                )
+                if response.status_code != 200:
+                    st.error("Groq returned an error: " + response.text)
+                else:
+                    answer = response.json()["choices"][0]["message"]["content"]
+                    st.write(answer)
+                    st.session_state.messages.append({"role": "user", "content": question})
+                    st.session_state.messages.append({"role": "assistant", "content": answer})
+            except Exception as e:
+                st.error(f"Could not get a response: {e}")
+      </app-file>
+    </streamlit-app>
+  </body>
+</html>
